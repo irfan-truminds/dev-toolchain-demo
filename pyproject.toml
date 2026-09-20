@@ -1,0 +1,138 @@
+
+# ------------------------------------------------------------------------------
+# 1. PROJECT METADATA & DEPENDENCIES (PEP 621)
+# ------------------------------------------------------------------------------
+[project]
+name = "secure-service"
+version = "0.1.0"
+description = "AI-integrated production backend microservice"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Engineering Team", email = "dev@example.com" }
+]
+
+# Primary Application Dependencies
+dependencies = [
+    "fastapi>=0.110.0",
+    "pydantic>=2.6.0",
+    "requests>=2.31.0",
+]
+
+# Developer Toolchain & Testing Dependencies
+[project.optional-dependencies]
+dev = [
+    # Formatters & Linters
+    "black>=24.2.0",
+    "pylint>=3.1.0",
+    "flake8-builtins>=2.2.0",
+    
+    # Static Analysis & Type Checking
+    "mypy>=1.8.0",
+    "semgrep>=1.60.0",
+    "types-requests>=2.31.0",
+    
+    # Security Scanners
+    "pip-audit>=2.7.0",
+    
+    # Testing
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    
+    # Dependency Compiling (Lockfile with Hashes)
+    "pip-tools>=7.4.0",
+]
+
+# ------------------------------------------------------------------------------
+# 2. FORMATTER: Black
+# ------------------------------------------------------------------------------
+[tool.black]
+line-length = 88
+target-version = ["py311", "py312"]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | _build
+  | build
+  | dist
+)/
+'''
+
+# ------------------------------------------------------------------------------
+# 3. LINTER: Pylint
+# ------------------------------------------------------------------------------
+[tool.pylint.main]
+fail-under = 8.0 # Return non-zero exit code if quality score drops below 8.0
+py-version = "3.11"
+jobs = 0 # Autodetect available CPU cores for parallel execution
+
+[tool.pylint.messages_control]
+disable = [
+    "C0114", # missing-module-docstring
+    "C0116", # missing-function-docstring
+]
+enable = [
+    "useless-suppression",
+    "deprecated-pragma",
+]
+
+[tool.pylint.reports]
+output-format = "colorized"
+
+# ------------------------------------------------------------------------------
+# 4. TYPE CHECKER: Mypy
+# ------------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+warn_unused_ignores = true
+show_error_codes = true
+pretty = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+# ------------------------------------------------------------------------------
+# 5. TEST RUNNER: Pytest & Coverage
+# ------------------------------------------------------------------------------
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = """
+    --strict-markers
+    --strict-config
+    -ra
+    --cov=src
+    --cov-report=term-missing
+    --cov-fail-under=80
+"""
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+
+# ------------------------------------------------------------------------------
+# 6. DEPENDENCY VULNERABILITY SCANNER: pip-audit
+# ------------------------------------------------------------------------------
+[tool.pip-audit]
+desc = "on"
+local = false
+require-hashes = true # Enforces SHA-256 hash validation during audits
+
+# ------------------------------------------------------------------------------
+# 7. DEPENDENCY LOCKFILE COMPILER: pip-tools / uv
+# ------------------------------------------------------------------------------
+[tool.pip-tools]
+generate-hashes = true
+strip-extras = true
+reuse-hashes = true

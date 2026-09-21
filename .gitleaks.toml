@@ -1,0 +1,9 @@
+# .gitleaks.toml
+[extend]
+useDefault = true # Retains built-in Gitleaks rules alongside custom ones
+
+[[rules]]
+id = "generic-api-key-assignment"
+description = "Generic API Key Assignment"
+regex = '''(?i)(api_key|secret|token)\s*=\s*['"][a-zA-Z0-9_\-]{16,}['"]'''
+keywords = ["api_key", "API_KEY", "secret", "SECRET", "token", "TOKEN"]

@@ -1,0 +1,98 @@
+# .semgrep.yml
+# Production-grade Semgrep configuration for Python applications
+
+rules:
+  # ----------------------------------------------------------------------------
+  # 1. CODE EXECUTION & INJECTION RISKS
+  # ----------------------------------------------------------------------------
+  - id: python-no-eval-exec
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: exec(...)
+    message: "Avoid using 'eval()' or 'exec()'. Passing untrusted input to dynamic execution functions leads to Arbitrary Code Execution."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe: "CWE-95: Improper Neutralization of Directives in Dynamically Evaluated Code"
+      owasp: "A03:2021 - Injection"
+
+  - id: python-subprocess-shell-true
+    pattern: subprocess.$FUNC(..., shell=True, ...)
+    message: "Using 'shell=True' in subprocess calls allows OS command injection if arguments contain unsanitized input. Pass argument lists with 'shell=False' instead."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe: "CWE-78: Improper Neutralization of Special Elements used in an OS Command"
+      owasp: "A03:2021 - Injection"
+
+  - id: python-sql-string-interpolation
+    pattern-either:
+      - pattern: $CURSOR.execute(f"...", ...)
+      - pattern: $CURSOR.execute("..." % ..., ...)
+      - pattern: $CURSOR.execute("...".format(...), ...)
+    message: "Possible SQL Injection. Never construct SQL queries using string formatting or f-strings. Use parameterized query placeholders instead."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe: "CWE-89: Improper Neutralization of Special Elements used in an SQL Command"
+      owasp: "A03:2021 - Injection"
+
+  # ----------------------------------------------------------------------------
+  # 2. INSECURE DATA DESERIALIZATION
+  # ----------------------------------------------------------------------------
+  - id: python-insecure-pickle
+    pattern-either:
+      - pattern: pickle.loads(...)
+      - pattern: _pickle.loads(...)
+      - pattern: cPickle.loads(...)
+    message: "'pickle.loads()' on untrusted data can execute arbitrary code during deserialization. Use safer formats like JSON or Protocol Buffers."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe: "CWE-502: Deserialization of Untrusted Data"
+      owasp: "A08:2021 - Software and Data Integrity Failures"
+
+  - id: python-insecure-yaml-load
+    patterns:
+      - pattern: yaml.load($STREAM, ...)
+      - pattern-not: yaml.load($STREAM, Loader=yaml.SafeLoader, ...)
+      - pattern-not: yaml.load($STREAM, Loader=yaml.CSafeLoader, ...)
+    message: "Using 'yaml.load()' without 'SafeLoader' allows arbitrary Python object instantiation. Use 'yaml.safe_load()' instead."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe: "CWE-502: Deserialization of Untrusted Data"
+
+  # ----------------------------------------------------------------------------
+  # 3. CRYPTOGRAPHY & SECURITY ANTI-PATTERNS
+  # ----------------------------------------------------------------------------
+  - id: python-weak-crypto-hash
+    pattern-either:
+      - pattern: hashlib.md5(...)
+      - pattern: hashlib.sha1(...)
+    message: "MD5 and SHA-1 are cryptographically broken. Use 'hashlib.sha256()' or stronger algorithms for integrity, and Argon2/bcrypt for passwords."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      cwe: "CWE-327: Use of a Broken or Risky Cryptographic Algorithm"
+      owasp: "A02:2021 - Cryptographic Failures"
+
+  - id: python-hardcoded-temp-file
+    pattern: open("/tmp/...", ...)
+    message: "Writing directly to predictable paths in '/tmp' can create symlink collision vulnerabilities (CWE-377). Use the standard 'tempfile' module."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      cwe: "CWE-377: Insecure Temporary File"
+
+# ------------------------------------------------------------------------------
+# GLOBAL PATH EXCLUSIONS (Optimizes performance and noise ratio)
+# ------------------------------------------------------------------------------
+paths:
+  exclude:
+    - ".venv/**"
+    - "venv/**"
+    - "build/**"
+    - "dist/**"
+    - ".git/**"
+    - "tests/fixtures/**"

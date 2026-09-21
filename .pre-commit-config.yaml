@@ -1,0 +1,24 @@
+repos:
+  - repo: local
+    hooks:
+      # --- Stage 1: Local Pre-Commit (Runs on 'git commit') ---
+      - id: quality-check-staged
+        name: Quality Gate (Staged Files)
+        entry: ./scripts/check-quality.sh staged
+        language: system
+        stages: [pre-commit]
+        pass_filenames: false
+
+      # --- Stage 2: Local Pre-Push (Runs on 'git push') ---
+      - id: quality-check-push
+        name: Quality Gate (Pre-Push)
+        entry: ./scripts/check-quality.sh pre-push
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+
+      # - id: gitleaks
+      #   name: Secret Scan
+      #   entry: gitleaks protect --staged --verbose
+      #   language: system
+      #   stages: [pre-commit, pre-push]

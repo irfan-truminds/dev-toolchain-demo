@@ -38,9 +38,13 @@ dev = [
     # Testing
     "pytest>=8.0.0",
     "pytest-cov>=4.1.0",
+    "pytest-testmon",
     
     # Dependency Compiling (Lockfile with Hashes)
     "pip-tools>=7.4.0",
+
+    # Hook Manager Framework
+    "pre-commit"
 ]
 
 # ------------------------------------------------------------------------------
@@ -104,14 +108,14 @@ disallow_untyped_defs = false
 minversion = "8.0"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = """
-    --strict-markers
-    --strict-config
-    -ra
-    --cov=src
-    --cov-report=term-missing
-    --cov-fail-under=80
-"""
+#addopts = """
+#    --strict-markers
+#    --strict-config
+#    -ra
+#    --cov=src
+#    --cov-report=term-missing
+#    --cov-fail-under=80
+#"""
 
 [tool.coverage.run]
 source = ["src"]

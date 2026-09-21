@@ -110,10 +110,68 @@ pre-commit run quality-check-push --hook-stage pre-push
     5. Dependency Review Action (PR Blocking Gate) - Add the official Dependency Review action to your PR workflow to evaluate new dependencies before they are merged into main:
     6. GitHub Apps/Webhooks. - For compliance requirements beyond standard GitHub settings, server-side webhooks and GitHub Apps enforce external validation rules: A. Pre-Receive / Merge Validation Webhooks - For GitHub Enterprise Server (on-premise), custom pre-receive hooks execute custom shell or Docker scripts directly on GitHub's infrastructure prior to updating branch references. B. Organization Webhooks (Audit & Event Streaming) Configure organization-wide webhooks to stream audit logs to external SIEMs (Datadog, Splunk, AWS CloudWatch, or Panther):
 
-## To-Do
-* add sample build, test, deploy pipeline
-* test github push protection, PR checks
-* setup scheduled dependency scans for CVEs, also explore codeql
-* check if we need to set -euo pipefail in quality check script
+## Example Enforcement
+```bash
+(.venv) irf1551@irf1551-Latitude-3420:~/repos/dev-toolchain-demo$ git push origin feat/server-side-hooks --no-verify
+Enumerating objects: 5, done.
+Counting objects: 100% (5/5), done.
+Delta compression using up to 8 threads
+Compressing objects: 100% (3/3), done.
+Writing objects: 100% (3/3), 351 bytes | 351.00 KiB/s, done.
+Total 3 (delta 1), reused 0 (delta 0), pack-reused 0
+remote: Resolving deltas: 100% (1/1), completed with 1 local object.
+remote: error: GH013: Repository rule violations found for refs/heads/feat/server-side-hooks.
+remote: Review all repository rules at https://github.com/irfan-truminds/dev-toolchain-demo/rules?ref=refs%2Fheads%2Ffeat%2Fserver-side-hooks
+remote: 
+remote: - Changes must be made through a pull request.
+remote: 
+remote: - Required status check "Execute Unified Quality Suite" is expected.
+remote: 
+To github.com:irfan-truminds/dev-toolchain-demo.git
+ ! [remote rejected] feat/server-side-hooks -> feat/server-side-hooks (push declined due to repository rule violations)
+error: failed to push some refs to 'github.com:irfan-truminds/dev-toolchain-demo.git'
 
-ghp_hjdhdjdhjd
+(.venv) irf1551@irf1551-Latitude-3420:~/repos/dev-toolchain-demo$
+(.venv) irf1551@irf1551-Latitude-3420:~/repos/dev-toolchain-demo$
+(.venv) irf1551@irf1551-Latitude-3420:~/repos/dev-toolchain-demo$ git push origin feat/server-side-hooks --no-verify
+Enumerating objects: 5, done.
+Counting objects: 100% (5/5), done.
+Delta compression using up to 8 threads
+Compressing objects: 100% (3/3), done.
+Writing objects: 100% (3/3), 385 bytes | 385.00 KiB/s, done.
+Total 3 (delta 2), reused 0 (delta 0), pack-reused 0
+remote: Resolving deltas: 100% (2/2), completed with 2 local objects.
+remote: error: GH013: Repository rule violations found for refs/heads/feat/server-side-hooks.
+remote: 
+remote: - GITHUB PUSH PROTECTION
+remote:   —————————————————————————————————————————
+remote:     Resolve the following violations before pushing again
+remote: 
+remote:     - Push cannot contain secrets
+remote: 
+remote:     
+remote:      (?) Learn how to resolve a blocked push
+remote:      https://docs.github.com/code-security/secret-scanning/working-with-secret-scanning-and-push-protection/working-with-push-protection-from-the-command-line#resolving-a-blocked-push
+remote:     
+remote:     
+remote:       —— Slack API Token ———————————————————————————————————
+remote:        locations:
+remote:          - commit: 441d42d0b3f77b80aa76eb0626129d5c161620a4
+remote:            path: test_secret.txt:4
+remote:     
+remote:        (?) To push, remove secret from commit(s) or follow this URL to allow the secret.
+remote:        https://github.com/irfan-truminds/dev-toolchain-demo/security/secret-scanning/unblock-secret/3JdKLCxsYFiQPsrcF0scHm1fXnH
+remote:     
+remote: 
+remote: 
+To github.com:irfan-truminds/dev-toolchain-demo.git
+ ! [remote rejected] feat/server-side-hooks -> feat/server-side-hooks (push declined due to repository rule violations)
+error: failed to push some refs to 'github.com:irfan-truminds/dev-toolchain-demo.git'
+```
+
+## To-Do
+- [] add sample build, test, deploy pipeline
+- [x] test github push protection, PR checks
+- [] setup scheduled dependency scans for CVEs, also explore codeql
+- [] check if we need to set -euo pipefail in quality check script
+

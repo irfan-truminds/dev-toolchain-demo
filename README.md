@@ -113,5 +113,6 @@ pre-commit run quality-check-push --hook-stage pre-push
 ## To-Do
 * add sample build, test, deploy pipeline
 * test github push protection, PR checks
-* setup scheduled dependency scans for CVEs
+* setup scheduled dependency scans for CVEs, also explore codeql
+* check if we need to set -euo pipefail in quality check script
 

@@ -169,9 +169,231 @@ To github.com:irfan-truminds/dev-toolchain-demo.git
 error: failed to push some refs to 'github.com:irfan-truminds/dev-toolchain-demo.git'
 ```
 
+## Workflow Responsibilities
+**Yes, you should use separate workflow files for each.**
+
+Combining them into a single YAML file creates security vulnerabilities, bloated permission scopes, and maintenance friction. Decoupling them into dedicated workflows (`pr-quality.yml`, `deploy.yml`, `scheduled-security.yml`) aligns with industry best practices for the following reasons:
+
+* **Security & Least Privilege:** PR workflows triggered by `pull_request` should run with read-only permissions and **no access to production secrets**. Deploy workflows require high-privilege credentials (Docker registries, cloud access). Mixing them risks exposing credentials to untrusted PR code.
+* **Execution & Lifecycle Triggers:** PR checks run on open/update events, deploys run on merges to `main` or release tags, and security audits run on cron schedules or out-of-band events.
+* **Clear UI & Branch Rulesets:** Distinct workflow files map cleanly to individual status checks in GitHub Rulesets, making it easy to block merges on quality gates without tangling deployment statuses.
+
+---
+
+## Architecture Breakdown & Best Practices
+
+```text
+.github/workflows/
+├── pr-quality.yml          # Fast PR quality & security gates
+├── deploy.yml              # Docker build, scan, and deployment pipeline
+└── scheduled-security.yml  # Cron-based deep security & dependency scans
+
+```
+
+---
+
+### 1. PR Checks (`.github/workflows/pr-quality.yml`)
+
+This workflow acts as the non-negotiable quality gate for open pull requests.
+
+#### Best Practices
+
+* **Enforce Read-Only Scope:** Explicitly declare `permissions: { contents: read }`.
+* **Cancel Outdated Runs:** Use `concurrency` with `cancel-in-progress: true` so re-pushed commits immediately kill older, redundant CI jobs.
+* **Leverage Centralized Logic:** Execute your unified quality script (`./scripts/check-quality.sh ci`) instead of hardcoding redundant steps in YAML.
+
+```yaml
+name: PR Quality Gate
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  quality-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      
+      - name: Install Dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -e .[dev] semgrep pip-audit pytest-cov
+          
+      - name: Install Gitleaks
+        run: |
+          wget -q https://github.com/gitleaks/gitleaks/releases/download/v8.18.2/gitleaks_8.18.2_linux_x64.tar.gz
+          tar -xzf gitleaks_8.18.2_linux_x64.tar.gz gitleaks
+          sudo mv gitleaks /usr/local/bin/
+
+      - name: Run Unified Quality Suite
+        run: ./scripts/check-quality.sh ci
+
+```
+
+---
+
+### 2. Build, Test & Deploy Pipeline (`.github/workflows/deploy.yml`)
+
+This pipeline builds, scans, and deploys the containerized application upon merging to `main` or pushing a release tag.
+
+#### Best Practices
+
+* **Build Once, Deploy Immutable Artifacts:** Build the container image once, tag it with the immutable Git SHA and SemVer tag, push it to a container registry (GHCR/ECR), and deploy that exact image across staging/production.
+* **Scan Images Before Release:** Run container vulnerability scanners (like Trivy or Grype) on the built image before triggering deployment.
+* **Use GitHub Environments:** Attach jobs to `environment: production` to utilize GitHub's built-in deployment protection rules, manual approval gates, and scoped environment secrets.
+* **Build Cache Acceleration:** Use Buildx with GitHub Actions caching (`cache-from: type=gha`, `cache-to: type=gha`) to keep container build times sub-minute.
+
+```yaml
+name: Build & Deploy Container
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*.*.*' ]
+
+permissions:
+  contents: read
+  packages: write  # Needed for GHCR
+
+jobs:
+  build-and-scan:
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker Metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=sha,prefix=
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan Image for Vulnerabilities (Trivy)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.meta.outputs.tags }}
+          format: 'table'
+          exit-code: '1' # Fail deploy if CRITICAL vulnerabilities are found
+          severity: 'CRITICAL,HIGH'
+
+  deploy-prod:
+    needs: build-and-scan
+    runs-on: ubuntu-latest
+    environment: production # Triggers manual approval gates & loads prod secrets
+    steps:
+      - name: Deploy to Cloud
+        run: |
+          echo "Deploying image tag: ${{ needs.build-and-scan.outputs.image-tag }}"
+          # Insert deployment commands (e.g., helm upgrade, kubectl set image, or cloud API)
+
+```
+
+---
+
+### 3. Scheduled Security Runs (`.github/workflows/scheduled-security.yml`)
+
+A codebase that doesn't change can still become vulnerable as new CVEs and exploits are disclosed daily. Scheduled runs proactively audit static code, full Git history, and locked dependencies.
+
+#### Best Practices
+
+* **Decouple Native Dependabot from Custom Cron Scans:**
+* Use GitHub's native `.github/dependabot.yml` file for automatic dependency PR generation (runs natively outside GitHub Actions).
+* Use `scheduled-security.yml` for deep full-history audits, static analysis (Semgrep/CodeQL), and zero-day dependency checks via `pip-audit`.
+
+
+* **Publish Results to GitHub Security Tab:** Output findings as SARIF files and upload them using `github/codeql-action/upload-sarif` so security issues appear directly under **Security > Code scanning**.
+
+```yaml
+name: Scheduled Security Audit
+
+on:
+  schedule:
+    # Run every Monday at 02:00 AM UTC
+    - cron: '0 2 * * 1'
+  workflow_dispatch: # Allows manual triggering from GitHub UI
+
+permissions:
+  contents: read
+  security-events: write # Required to upload SARIF security alerts
+
+jobs:
+  deep-security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Deep scan requires full git history
+
+      - name: Full Repository Secret Audit (Gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Dependency Vulnerability Audit
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt --format sarif -o pip-audit-results.sarif || true
+
+      - name: Upload Security Findings to GitHub
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: pip-audit-results.sarif
+
+```
+
+---
+
+### Workflow Responsibilities Summary
+
+| Workflow File | Primary Triggers | Required Permissions | Key Tools / Actions |
+| --- | --- | --- | --- |
+| `pr-quality.yml` | `pull_request` | `contents: read` | `check-quality.sh ci`, `pytest`, `mypy`, `black` |
+| `deploy.yml` | `push` (main/tags) | `packages: write`, Environment access | `docker buildx`, `trivy`, deployment CLI |
+| `scheduled-security.yml` | `schedule` (cron), `workflow_dispatch` | `security-events: write` | `gitleaks detect`, `pip-audit`, SARIF upload |
+| *(Native config)* `.github/dependabot.yml` | Scheduled interval (e.g., daily/weekly) | Managed natively by GitHub | Dependabot PRs |
+
 ## To-Do
 - [] add sample build, test, deploy pipeline
 - [x] test github push protection, PR checks
 - [] setup scheduled dependency scans for CVEs, also explore codeql
 - [] check if we need to set -euo pipefail in quality check script
+- [] check if dependency audit needs to be moved to scheduled CI workflow instead of being part of PR checks, or keep in both
 

@@ -1,0 +1,35 @@
+name: Scheduled Security Audit
+
+on:
+  schedule:
+    # Run every Monday at 02:00 AM UTC
+    - cron: '0 2 * * 1'
+  workflow_dispatch: # Allows manual triggering from GitHub UI
+
+permissions:
+  contents: read
+  security-events: write # Required to upload SARIF security alerts
+
+jobs:
+  deep-security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Deep scan requires full git history
+
+      - name: Full Repository Secret Audit (Gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Dependency Vulnerability Audit
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt --format sarif -o pip-audit-results.sarif || true
+
+      - name: Upload Security Findings to GitHub
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: pip-audit-results.sarif

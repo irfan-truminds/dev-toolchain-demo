@@ -1,0 +1,25 @@
+// .devcontainer/devcontainer.json
+{
+  "name": "Python Toolchain Dev Environment",
+  "build": {
+    "dockerfile": "../Dockerfile",
+    "context": ".."
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.defaultInterpreterPath": "/venv/bin/python",
+        "python.formatting.provider": "black",
+        "python.testing.pytestEnabled": true
+      },
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "charliermarsh.ruff"
+      ]
+    }
+  },
+  // Ensure local git hooks install automatically when the dev container starts
+  "postCreateCommand": "pre-commit install --hook-type pre-commit --hook-type pre-push",
+  "remoteUser": "root"
+}

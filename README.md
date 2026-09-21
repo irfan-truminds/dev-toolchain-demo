@@ -98,3 +98,20 @@ pre-commit run quality-check-staged --all-files
 pre-commit run quality-check-push --hook-stage pre-push
 
 ```
+
+## Server Side Hooks / Governance
+* Fine grained server side git-hooks not always configurable (depends on vendor, hosting, etc)
+* Some vendors like Github expose governance rules - unbypassable boundary that prevents unverified, unsafe, or non-compliant code from entering primary branches, even if local Git hooks are skipped using git commit --no-verify.
+* Core Pillars:
+    1. Repository Rulesets (modern branch protection): Block force pushes & Restrict deletions, Require signed commits, require linear history, require a pull request before merging, Require status checks to pass. Optional: Combine Rulesets with a tracked .github/CODEOWNERS file to mandate specialized team reviews whenever high-risk files or infrastructure directories are modified
+    2. Server-Side Push Protection: If a known secret pattern (AWS keys, GitHub tokens, OpenAI keys, standard RSA private keys, or custom defined regexes) is detected, GitHub blocks the push directly in the SSH/HTTPS connection response. Enterprise accounts can define custom regular expressions in Organization settings to scan for internal proprietary tokens (e.g., company_live_secret_[a-zA-Z0-9]{32}).
+    3. PR Status Check Enforcement (covered in Repository Rulesets)
+    4. Supply Chain Security Alerts - Dependabot Alerts: Scans locked manifests (requirements.txt, poetry.lock, package-lock.json) against GitHub's Advisory Database and generates alerts for published CVEs. Dependabot Security Updates: Automatically opens automated Pull Requests to bump vulnerable dependencies to fixed versions as soon as a patch is available.
+    5. Dependency Review Action (PR Blocking Gate) - Add the official Dependency Review action to your PR workflow to evaluate new dependencies before they are merged into main:
+    6. GitHub Apps/Webhooks. - For compliance requirements beyond standard GitHub settings, server-side webhooks and GitHub Apps enforce external validation rules: A. Pre-Receive / Merge Validation Webhooks - For GitHub Enterprise Server (on-premise), custom pre-receive hooks execute custom shell or Docker scripts directly on GitHub's infrastructure prior to updating branch references. B. Organization Webhooks (Audit & Event Streaming) Configure organization-wide webhooks to stream audit logs to external SIEMs (Datadog, Splunk, AWS CloudWatch, or Panther):
+
+## To-Do
+* add sample build, test, deploy pipeline
+* test github push protection, PR checks
+* setup scheduled dependency scans for CVEs
+

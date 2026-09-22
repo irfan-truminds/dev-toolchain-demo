@@ -1,0 +1,13 @@
+# Without this, `COPY . .` copies the HOST's .venv into the image: a second
+# complete Python environment, ~11k files, and every scanner then reports on
+# both copies. It is also how 99.5% of a repo-wide gitleaks scan became
+# someone else's code -- same root cause, different tool.
+.venv/
+.git/
+.mypy_cache/
+.pytest_cache/
+__pycache__/
+*.pyc
+.coverage
+.testmondata
+*.egg-info/

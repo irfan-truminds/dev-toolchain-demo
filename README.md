@@ -232,17 +232,10 @@ error: failed to push some refs to 'github.com:irfan-truminds/dev-toolchain-demo
 | `scheduled-security.yml` | `schedule` (cron), `workflow_dispatch` | `security-events: write` | `gitleaks detect`, `pip-audit`, SARIF upload |
 | *(Native config)* `.github/dependabot.yml` | Scheduled interval (e.g., daily/weekly) | Managed natively by GitHub | Dependabot PRs |
 
-
-## To-Do (human)
-- [] add sample build, test, deploy pipeline
-- [x] test github push protection, PR checks
-- [x] setup scheduled dependency scans for CVEs, also explore codeql
-
-
 ## To-Do (AI)
 Research on these topics:
 - [] check if we need to set -euo pipefail in quality check script - is it better to fail fast or have all results first? need to consider hook output size effect on model context window size
 - [] some github workflows are dummy / placeholder like deploy.yml, if relevant to the demo, need to update those workflows and ensure they work
-
+- [] check if the devcontainer is setup properly
 
 

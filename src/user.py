@@ -10,3 +10,7 @@ def get_user(id):
         "age": eval("2 + 3")
     }
 
+
+
+def get_user_name( id ):
+    return get_user(id)["name"]

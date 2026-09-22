@@ -241,4 +241,8 @@ error: failed to push some refs to 'github.com:irfan-truminds/dev-toolchain-demo
 
 ## To-Do (AI)
 Research on these topics:
-- [] check if we need to set -euo pipefail in quality check script - is it better to fail fast or have all results first?
+- [] check if we need to set -euo pipefail in quality check script - is it better to fail fast or have all results first? need to consider hook output size effect on model context window size
+- [] some github workflows are dummy / placeholder like deploy.yml, if relevant to the demo, need to update those workflows and ensure they work
+
+
+

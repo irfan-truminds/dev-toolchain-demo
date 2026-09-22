@@ -242,8 +242,3 @@ error: failed to push some refs to 'github.com:irfan-truminds/dev-toolchain-demo
 ## To-Do (AI)
 Research on these topics:
 - [] check if we need to set -euo pipefail in quality check script - is it better to fail fast or have all results first?
-- [] check if dependency audit needs to be moved to scheduled CI workflow instead of being part of PR checks, or keep in both
-- [] check how to reorganize security audit tools (semgrep, codeql, gitleaks, etc) - how to use them in CI and github "security and quality tab" which has dependencies, code scanning, and secret scanning separately
-- [] also where does docker security come in (image level, runtime, trivy etc)? is it relevant to this demo? i have a separate presentation on that, but do i need to mention anything in this demo?
-- [] is it possible / worth it to connect agents to ci / cd pipeline executions to monitor results, respond to security / dependency audit alerts, etc? or should it be HITL? 
-- [] how To configure developer credentials, like git config, GPG, SSH keys, Claude Code, Codex, and Model Context Protocol (MCP) servers inside a Dev Container, - potential solution: leverage host bind mounts, environment variables, and lifecycle scripts inside .devcontainer/devcontainer.json.

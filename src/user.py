@@ -7,6 +7,6 @@ def get_user(id):
     return {
         "name": "dummy",
         "address": "some really long address line that exceeds normal screen width and requires user to scroll horizontally",
-        "age": eval(2+3)
+        "age": eval(2 + 3)
     }
 

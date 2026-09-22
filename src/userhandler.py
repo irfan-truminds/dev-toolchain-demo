@@ -13,5 +13,5 @@ class UserHandler(BaseHandler):
         return {"id": id, "data": user_data, "change1": "xyz"}
 
 if __name__ == "__main__":
-    handler = UserHandler()  # <--- Triggers instantiation
+    handler = UserHandler( )  # <--- Triggers instantiation
     

@@ -11,26 +11,6 @@ $ git remote -v
 origin  git@github.com:irfan-truminds/dev-toolchain-demo.git (fetch)
 origin  git@github.com:irfan-truminds/dev-toolchain-demo.git (push)
 ```
-## Package Management: Identical Environments, Supply Chain Integrity
-* pip
-```bash
-$ python3 -m venv .venv
-$ source .venv/bin/activate
-(.venv) $ pip install pip-tools requests black flake8 flake8-builtins pylint
-(.venv) $ pip freeze > requirements.in
-(.venv) $ pip-compile --generate-hashes requirements.in # generates requirements.txt
-(.venv) $ pip uninstall requests
-(.venv) $ # simulate hash mismatch (edit requirements.txt, or make the server present a file with different hash)
-(.venv) $ pip install --require-hashes -r requirements.txt
-ERROR: THESE PACKAGES DO NOT MATCH THE HASHES FROM THE REQUIREMENTS FILE. If you have updated the package versions, please update the hashes. Otherwise, examine the package contents carefully; someone may have tampered with them.
-    requests==2.34.2 from https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl (from -r requirements.txt (line 225)):
-        Expected sha256 2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb91c061f4907e278e0
-        Expected     or f288924cae4e29463698d6d60bc6a4da69c89185ad1cc4104f584e960b9ed
-             Got        2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0
-
-(.venv) $
-
-```
 
 ## Package Mgmt (New)
 ```bash
@@ -110,7 +90,81 @@ pre-commit run quality-check-push --hook-stage pre-push
     5. Dependency Review Action (PR Blocking Gate) - Add the official Dependency Review action to your PR workflow to evaluate new dependencies before they are merged into main:
     6. GitHub Apps/Webhooks. - For compliance requirements beyond standard GitHub settings, server-side webhooks and GitHub Apps enforce external validation rules: A. Pre-Receive / Merge Validation Webhooks - For GitHub Enterprise Server (on-premise), custom pre-receive hooks execute custom shell or Docker scripts directly on GitHub's infrastructure prior to updating branch references. B. Organization Webhooks (Audit & Event Streaming) Configure organization-wide webhooks to stream audit logs to external SIEMs (Datadog, Splunk, AWS CloudWatch, or Panther):
 
-## Example Enforcement
+## Example Client Side Enforcement
+```bash
+(.venv) irf1551@irf1551-Latitude-3420:~/repos/dev-toolchain-demo$ git commit -m "fixes"
+[WARNING] Unstaged files detected.
+[INFO] Stashing unstaged files to /home/irf1551/.cache/pre-commit/patch1790053074-1469225.
+Quality Gate (Staged Files)..............................................Failed
+- hook id: quality-check-staged
+- exit code: 1
+
+==> [PRE-COMMIT] Running staged quality gate...
+would reformat src/user.py
+would reformat src/userhandler.py
+
+Oh no! 💥 💔 💥
+2 files would be reformatted.
+
+[INFO] Restored changes from /home/irf1551/.cache/pre-commit/patch1790053074-1469225.
+
+
+
+
+(.venv) irf1551@irf1551-Latitude-3420:~/repos/dev-toolchain-demo$ git push origin main
+[WARNING] Unstaged files detected.
+[INFO] Stashing unstaged files to /home/irf1551/.cache/pre-commit/patch1790053012-1467468.
+Quality Gate (Pre-Push)..................................................Failed
+- hook id: quality-check-push
+- exit code: 1
+
+==> [PRE-PUSH] Running pre-push quality & test gate...
+src/userhandler.py:5: error: Missing type arguments for generic type "dict" 
+[type-arg]
+        def handle(self, payload: dict) -> None:
+                                  ^
+src/userhandler.py:12: error: Function is missing a type annotation 
+[no-untyped-def]
+        def save_user(self, user_data=[], id=None):
+        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/userhandler.py:16: error: Cannot instantiate abstract class "UserHandler"
+with abstract attribute "handle"  [abstract]
+        handler = UserHandler()  # <--- Triggers instantiation
+                  ^~~~~~~~~~~~~
+src/user.py:5: error: Function is missing a type annotation  [no-untyped-def]
+    def get_user(id):
+    ^~~~~~~~~~~~~~~~~
+src/user.py:10: error: Argument 1 to "eval" has incompatible type "int";
+expected "str | Buffer | CodeType"  [arg-type]
+            "age": eval(2+3)
+                        ^~~
+tests/test_userhandler.py:4: error: Function is missing a return type
+annotation  [no-untyped-def]
+    def test_user_handler():
+    ^~~~~~~~~~~~~~~~~~~~~~~~
+tests/test_userhandler.py:5: error: Cannot instantiate abstract class
+"UserHandler" with abstract attribute "handle"  [abstract]
+        return UserHandler() is not None
+               ^~~~~~~~~~~~~
+tests/test_user.py:4: error: Function is missing a return type annotation 
+[no-untyped-def]
+    def test_get_user(   ):
+    ^~~~~~~~~~~~~~~~~~~~~~~
+tests/test_user.py:4: note: Use "-> None" if function does not return a value
+tests/test_user.py:5: error: Call to untyped function "get_user" in typed
+context  [no-untyped-call]
+        assert get_user("1")
+               ^~~~~~~~~~~~~
+pyproject.toml: note: unused section(s): module = ['tests.*']
+Found 9 errors in 4 files (checked 4 source files)
+
+[INFO] Restored changes from /home/irf1551/.cache/pre-commit/patch1790053012-1467468.
+error: failed to push some refs to 'github.com:irfan-truminds/dev-toolchain-demo.git'
+
+
+```
+
+## Example Server Side Enforcement
 ```bash
 (.venv) irf1551@irf1551-Latitude-3420:~/repos/dev-toolchain-demo$ git push origin feat/server-side-hooks --no-verify
 Enumerating objects: 5, done.

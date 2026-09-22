@@ -18,17 +18,34 @@ jobs:
         with:
           fetch-depth: 0 # Deep scan requires full git history
 
-      - name: Dependency Vulnerability Audit
-        if: always()
+      # pip-audit has no SARIF output format (choices: columns, json,
+      # cyclonedx-json, cyclonedx-xml, markdown). The previous version of this
+      # step asked for `--format sarif`, failed, and was wrapped in `|| true`
+      # -- so it reported SUCCESS while scanning nothing, every week.
+      # osv-scanner queries the same advisory data and emits SARIF natively.
+      - name: Dependency Vulnerability Audit (osv-scanner -> SARIF)
+        id: sca
         run: |
-          pip install pip-audit
-          pip-audit -r requirements.txt --format sarif -o pip-audit-results.sarif || true
+          set -o pipefail
+          curl -sSfL -o /usr/local/bin/osv-scanner \
+            https://github.com/google/osv-scanner/releases/download/v1.9.2/osv-scanner_linux_amd64
+          chmod +x /usr/local/bin/osv-scanner
+          # exit 1 == vulnerabilities found (expected, not fatal here -- we
+          # want the SARIF uploaded). Any OTHER non-zero means the scan did not
+          # run, and that must fail the job rather than be swallowed.
+          osv-scanner --lockfile=requirements.txt --format sarif --output osv.sarif && rc=0 || rc=$?
+          if [ "${rc:-0}" -gt 1 ]; then
+            echo "::error::osv-scanner failed to run (exit $rc) -- this is a broken scan, not a finding"
+            exit "$rc"
+          fi
+          test -s osv.sarif || { echo "::error::no SARIF produced"; exit 1; }
 
       - name: Upload Security Findings to GitHub
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        if: always() && steps.sca.outcome == 'success'
         with:
-          sarif_file: pip-audit-results.sarif
+          sarif_file: osv.sarif
+          category: osv-scanner
 
   gitleaks-scan:
       runs-on: ubuntu-latest
@@ -39,18 +56,32 @@ jobs:
             fetch-depth: 0 # Scans full Git history
 
         - name: Run Gitleaks CLI and Output SARIF
+          id: gitleaks
           run: |
-            # Install Gitleaks binary
-            GITLEAKS_VERSION="8.18.2"
+            set -o pipefail
+            # 8.28.0 has the `git` subcommand. The previous version pinned
+            # 8.18.2 and then called `gitleaks git`, which did not exist until
+            # the 8.19 line -- and `|| true` hid the failure, so this job
+            # reported success while scanning nothing. Pin the version AND the
+            # CLI surface together; that mismatch is the whole bug class.
+            GITLEAKS_VERSION="8.28.0"
             wget -q https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz
             tar -xzf gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz gitleaks
             sudo mv gitleaks /usr/local/bin/
-            
-            # Execute scan and produce SARIF report (exit code 0 prevents pipeline failure before upload)
-            gitleaks git --format sarif --report-path gitleaks-results.sarif || true
+            gitleaks version
+
+            # exit 1 == leaks found (expected; we still want the SARIF).
+            # Anything else means the scan did not run -- fail loudly.
+            gitleaks git --report-format sarif --report-path gitleaks.sarif --exit-code 1 && rc=0 || rc=$?
+            if [ "${rc:-0}" -gt 1 ]; then
+              echo "::error::gitleaks failed to run (exit $rc) -- broken scan, not a finding"
+              exit "$rc"
+            fi
+            test -s gitleaks.sarif || { echo "::error::no SARIF produced"; exit 1; }
 
         - name: Upload Gitleaks Findings to GitHub Code Scanning
           uses: github/codeql-action/upload-sarif@v3
-          if: always()
+          if: always() && steps.gitleaks.outcome == 'success'
           with:
-            sarif_file: gitleaks-results.sarif
+            sarif_file: gitleaks.sarif
+            category: gitleaks

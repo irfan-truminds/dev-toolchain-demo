@@ -234,8 +234,133 @@ error: failed to push some refs to 'github.com:irfan-truminds/dev-toolchain-demo
 
 ## To-Do (AI)
 Research on these topics:
+- [] scripts/check-quality.sh is python specific dev toolchain, what if we have a different tech stack? do we need to tailor based on tech stack if trying to build generic hooks?
 - [] check if we need to set -euo pipefail in quality check script - is it better to fail fast or have all results first? need to consider hook output size effect on model context window size
 - [] some github workflows are dummy / placeholder like deploy.yml, if relevant to the demo, need to update those workflows and ensure they work
 - [] check if the devcontainer is setup properly
 
 
+
+---
+
+## Agent Hooks (level 1)
+
+The layer that git and CI cannot provide. Git hooks fire on git operations and CI fires on push, so
+**neither one ever sees `git commit --no-verify` being typed.** Only a hook in front of the agent's shell
+does.
+
+Two hooks, both thin wrappers over the same `check-quality.sh` every other layer calls:
+
+| Script | Fires on | Job |
+|---|---|---|
+| `scripts/agent-guard.py` | before a shell command | refuses commands that **bypass** the other layers |
+| `scripts/agent-check-edit.py` | after a file edit | runs the fast checks on **just that file** |
+
+```bash
+# Test the guard without an agent — it is just a program reading JSON on stdin
+echo '{"tool_name":"Bash","tool_input":{"command":"git commit --no-verify -m wip"}}' \
+  | ./scripts/agent-guard.py; echo "exit=$?"     # exit=2, blocked
+
+echo '{"tool_name":"Bash","tool_input":{"command":"git commit -m \"document --no-verify\""}}' \
+  | ./scripts/agent-guard.py; echo "exit=$?"     # exit=0, a commit message is not a bypass
+
+# Test the post-edit check
+echo '{"tool_name":"Edit","tool_input":{"file_path":"src/user.py"}}' \
+  | ./scripts/agent-check-edit.py; echo "exit=$?"
+```
+
+**What it blocks:** `--no-verify` (and `git commit -n`), `SKIP=`, `HUSKY=0`,
+`PRE_COMMIT_ALLOW_NO_CONFIG`, repointing `core.hooksPath`, deleting `.git/hooks`, and bare `git push
+--force` (`--force-with-lease` is allowed).
+
+**Vendor neutrality.** The scripts are the durable artifact; the config is disposable glue. Same two scripts,
+two harnesses:
+
+- `.claude/settings.json` — `PreToolUse` / `PostToolUse` *(also read by VS Code Copilot agent mode)*
+- `.cursor/hooks.json` — `beforeShellExecution` / `afterFileEdit`, with `failClosed: true`
+
+Only `extract_command()` / `extract_path()` know about a vendor's payload shape. Supporting another harness
+is one more key path, not a rewrite of the rules.
+
+> **Say the limit out loud when demoing this.** It is still **level 1**: the config is in the repo, the
+> agent can edit it, and most harnesses **fail open** if the script is missing. It raises the cost of a
+> bypass. It does not remove the ability. The unbypassable copy is the ruleset — which is why
+> `git push --no-verify` in the transcript above was still refused by the server.
+
+---
+
+## To-Do (AI) — answers
+
+### 1. `check-quality.sh` is Python-specific — what about other stacks?
+
+**Partly answered; the rest is pending research.** The contract is already stack-agnostic:
+`check-quality.sh <mode> [files]` → exit 0 or non-zero, where mode is `agent | staged | pre-push | ci`.
+Every caller — the two agent hooks, both pre-commit stages, and the CI workflow — only knows that contract.
+**What is Python-specific is the body of the case statement, not the interface**, so a polyglot version
+dispatches on detected stack behind the same entry point. *The dispatcher/adapter question, and whether a
+tracked hooks dir + `core.hooksPath` is safe, is open research — see the session-2 review.*
+
+### 2. `set -euo pipefail` — fail fast, or collect all results?
+
+**Answered and implemented: it depends on who is reading, so it is now a per-mode decision.** `set -e` was
+removed; `run_check` records failures and continues.
+
+| Mode | Policy | Why |
+|---|---|---|
+| `agent` | **fail fast**, output capped at 40 lines | The model pays context for every line and can only act on one finding per turn |
+| `staged` / `pre-push` | **collect all** | A human wants one list, not five round trips |
+| `ci` | **collect all**, uncapped | Nobody is waiting; the log *is* the artifact |
+
+**Measured, 2026-09-22:** agent mode on one file = **157–275 ms** (black + mypy + gitleaks). Staged mode
+reporting *two* failures at once = **375 ms**. Under the old `set -e`, that second run stopped at `black`
+and never showed the nine mypy errors.
+
+**Two bugs fixed while doing this, both worth showing on a slide:**
+
+- **`$STAGED_PY` was undefined** in the `pre-push` and `ci` branches. Under `set -u` that is
+  `unbound variable` — the hook would **abort**, and because git cannot distinguish a crashed hook from a
+  failed check, it looks exactly like your code was rejected.
+- **The agent-time secret scan used `--source .`, scanning the whole repo: 14 seconds and 216 findings.**
+  Scoped to the edited file it is **8 ms**. Same tool, same check, **1,700× apart** — the entire "act only
+  on changed paths" rule in one flag.
+
+**And the fail-open/fail-closed rule is now implemented rather than assumed.** A check whose *tool* is
+missing (exit 127) is reported separately from a check that *failed*:
+
+```
+--- format:  SKIPPED, tool not installed (not blocking) ---
+--- secrets: TOOL MISSING (blocking -- this check is security-relevant) ---
+==> 1 check(s) COULD NOT RUN: secrets
+```
+
+Cosmetic checks fail open; `secrets`, `sast` and `deps` fail closed. **Either way it is loud** — a scanner
+that silently stops scanning is worse than no scanner.
+
+### 3. Placeholder workflows
+
+- `deploy.yml` is real up to `deploy-prod`, whose final step is an `echo`. **Fine for the demo** — it shows
+  the `environment:` manual-approval gate and the Trivy image scan, which are the teachable parts. Say it is
+  a stub rather than letting someone notice.
+- **The "Workflow Responsibilities Summary" table names `pr-quality.yml`, which does not exist** — the real
+  file is `ci-quality-checks.yml`. Fix the table.
+- **`.github/dependabot.yml` and `.github/CODEOWNERS` are referenced in this README but are not in the
+  repo.** Dependabot *alerts* are on by default; the *version-update PRs* described need that file.
+
+### 4. Is the devcontainer set up properly?
+
+**No — six issues, and one of them silently disables a security gate.**
+
+| # | Issue | Why it matters |
+|---|---|---|
+| 1 | **`gitleaks` is not installed in the image** | Every mode of `check-quality.sh` calls it. Inside the container the secrets check now reports **TOOL MISSING (blocking)** — correct, but the container defeats its own purpose |
+| 2 | `devcontainer.json` sets the interpreter to **`/venv/bin/python`, which the Dockerfile never creates** | It installs into system Python at `/usr/local`. The setting points at nothing |
+| 3 | `rm -rf /var/lib/apt-get/lists/*` — **wrong path**, should be `/var/lib/apt/lists/*` | The apt cache is never cleaned; the layer stays fat |
+| 4 | `pip install -e .[dev]` runs **before `COPY . .`** | An editable install with no source present; works by luck, not design |
+| 5 | **`remoteUser: root`** | Least privilege. The published reference devcontainers use a non-root user |
+| 6 | Extensions list `charliermarsh.ruff`; the repo uses **black + pylint** | The editor and the gate disagree about the rules |
+
+> **And the distinction worth making on stage rather than fixing silently:** this is a **toolchain
+> container, not a sandbox.** It has no egress control, no dropped capabilities and runs as root. That is a
+> legitimate thing to be — it delivers uniform tooling — but it is **not** the containment story from the
+> sandboxing section, and the two should not be conflated.
+# scratch

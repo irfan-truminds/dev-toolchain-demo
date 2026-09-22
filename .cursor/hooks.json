@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      { "command": "./scripts/agent-guard.py", "failClosed": true }
+    ],
+    "afterFileEdit": [
+      { "command": "./scripts/agent-check-edit.py", "failClosed": true }
+    ]
+  }
+}

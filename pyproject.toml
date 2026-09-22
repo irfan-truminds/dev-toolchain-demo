@@ -108,6 +108,17 @@ disallow_untyped_defs = false
 minversion = "8.0"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+# --strict-markers makes an UNREGISTERED marker on a test a collection error,
+# so `@pytest.mark.fsat` fails loudly instead of being silently ignored.
+# It does NOT catch a typo in a `-m` EXPRESSION: `pytest -m fsat` simply
+# selects nothing. pytest exits 5 for that ("no tests collected"), and
+# scripts/check-quality.sh treats 5 as a BROKEN check rather than a pass --
+# a gate that ran zero tests and reported success is the "Validation OK" scar.
+addopts = "--strict-markers"
+markers = [
+    "fast: runs in milliseconds, no I/O, no network -- safe at edit time and pre-commit",
+    "slow: integration, e2e, or anything touching the network -- pre-push and CI only",
+]
 #addopts = """
 #    --strict-markers
 #    --strict-config

@@ -29,7 +29,11 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          # Must match the Dockerfile (python:3.12-slim) and the local .venv.
+          # It was 3.11 while both of those were 3.12, and black's AST safety
+          # check fails when the running interpreter is older than the code's
+          # target-version -- the same commit passed locally and failed here.
+          python-version: '3.12'
           cache: 'pip'
 
       - name: Install System Dependencies (Gitleaks)

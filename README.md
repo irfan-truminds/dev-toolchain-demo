@@ -179,14 +179,16 @@ error: failed to push some refs to 'github.com:irfan-truminds/dev-toolchain-demo
 | *(Native config)* `.github/dependabot.yml` | Scheduled interval (e.g., daily/weekly) | Managed natively by GitHub | Dependabot PRs |
 
 
-## To-Do
+## To-Do (human)
 - [] add sample build, test, deploy pipeline
 - [x] test github push protection, PR checks
-- [] setup scheduled dependency scans for CVEs, also explore codeql
-- [] check if we need to set -euo pipefail in quality check script
+- [x] setup scheduled dependency scans for CVEs, also explore codeql
+
+
+## To-Do (AI)
+Research on these topics:
+- [] check if we need to set -euo pipefail in quality check script - is it better to fail fast or have all results first?
 - [] check if dependency audit needs to be moved to scheduled CI workflow instead of being part of PR checks, or keep in both
 - [] check how to reorganize security audit tools (semgrep, codeql, gitleaks, etc) - how to use them in CI and github "security and quality tab" which has dependencies, code scanning, and secret scanning separately
-- [] To configure developer credentials, SSH keys, Claude Code CLI state, and Model Context Protocol (MCP) servers inside a Dev Container, leverage host bind mounts, environment variables, and lifecycle scripts inside .devcontainer/devcontainer.json.
+- [] how To configure developer credentials, SSH keys, Claude Code CLI state, and Model Context Protocol (MCP) servers inside a Dev Container, - potential solution: leverage host bind mounts, environment variables, and lifecycle scripts inside .devcontainer/devcontainer.json.
 
-
-## Docker

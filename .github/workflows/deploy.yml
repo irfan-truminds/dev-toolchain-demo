@@ -63,7 +63,7 @@ jobs:
       # pins the scan to exactly the image this run pushed -- a tag can move
       # between the push and the scan.
       - name: Scan Image for Vulnerabilities (Trivy)
-        uses: aquasecurity/trivy-action@0.28.0   # pinned; @master is not a version
+        uses: aquasecurity/trivy-action@v0.36.0  # pinned; @master is not a version (tags carry the `v`)
         with:
           image-ref: ghcr.io/${{ github.repository }}@${{ steps.build.outputs.digest }}
           format: 'table'
